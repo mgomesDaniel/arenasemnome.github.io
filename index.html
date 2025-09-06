@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Placar Ao Vivo: Futebol Mundial</title>
+    <!-- Inclui o Tailwind CSS para um estilo moderno e responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Raleway:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1A237E 0%, #0D47A1 100%);
+            color: white;
+        }
+        .font-raleway {
+            font-family: 'Raleway', sans-serif;
+        }
+        .btn-toggle-view {
+            padding: 10px 20px;
+            background-color: #2563EB;
+            color: white;
+            border-radius: 9999px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .btn-toggle-view:hover {
+            background-color: #1D4ED8;
+        }
+        .notification-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            padding: 1rem 2rem;
+            border-radius: 9999px;
+            color: white;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .notification-container.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+        .notification-icon {
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center py-10">
+    <div class="container mx-auto px-4 max-w-4xl">
+        <header class="text-center mb-10">
+            <h1 class="text-5xl font-bold text-white mb-2 tracking-tight font-raleway">
+                Arena sem nome
+            </h1>
+            <p class="text-lg text-gray-200">Tudo o que você não precisa saber do seu time</p>
+        </header>
+
+        <!-- Botão para alternar entre as visualizações -->
+        <div class="flex justify-center mb-6">
+            <button id="toggle-betting-view" class="btn-toggle-view">Minhas Apostas</button>
+        </div>
+
+        <!-- Seção Principal de Placar (visível por padrão) -->
+        <div id="live-score-view">
+            <!-- Seção de pesquisa e abas de filtro -->
+            <div class="mb-6">
+                <input type="text" id="search-input" placeholder="Pesquisar time..." class="w-full p-2 mb-4 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-md text-gray-800">
+                
+                <div class="flex flex-wrap justify-center gap-2">
+                    <button id="tab-all" class="filter-tab px-4 py-2 text-sm md:text-base font-semibold rounded-full transition-colors duration-200 bg-blue-600 text-white shadow-md">Todos</button>
+                    <button id="tab-live" class="filter-tab px-4 py-2 text-sm md:text-base font-semibold rounded-full transition-colors duration-200 text-gray-700 bg-gray-200 hover:bg-gray-300 shadow-md">Ao Vivo</button>
+                    <button id="tab-finished" class="filter-tab px-4 py-2 text-sm md:text-base font-semibold rounded-full transition-colors duration-200 text-gray-700 bg-gray-200 hover:bg-gray-300 shadow-md">Finalizados</button>
+                    <button id="tab-upcoming" class="filter-tab px-4 py-2 text-sm md:text-base font-semibold rounded-full transition-colors duration-200 text-gray-700 bg-gray-200 hover:bg-gray-300 shadow-md">Próximos</button>
+                </div>
+            </div>
+
+            <!-- Seções de Jogos -->
+            <div id="loading-message" class="text-center text-white text-xl font-semibold mb-6">
+                Carregando jogos...
+            </div>
+            
+            <div id="all-games-container">
+                <div id="live-games-section">
+                    <h2 class="text-3xl font-bold text-white mb-6" id="live-games-title">Ao Vivo</h2>
+                    <div id="live-games-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10"></div>
+                </div>
+
+                <div id="upcoming-games-section">
+                    <h2 class="text-3xl font-bold text-white mb-6" id="upcoming-games-title">Próximas Partidas</h2>
+                    <div id="upcoming-games-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10"></div>
+                </div>
+
+                <div id="finished-games-section">
+                    <h2 class="text-3xl font-bold text-white mb-6" id="finished-games-title">Partidas Finalizadas</h2>
+                    <div id="finished-games-container" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Seção de Apostas (oculta por padrão) -->
+        <div id="betting-view" class="hidden">
+            <h2 class="text-3xl font-bold text-white mb-6 text-center">Minhas Apostas</h2>
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg mb-6">
+                <h3 class="text-xl font-semibold mb-4 text-white">Registrar uma Nova Aposta</h3>
+                <div class="flex flex-col gap-4">
+                    <div>
+                        <label for="game-select" class="block text-sm font-medium text-gray-300">Jogo</label>
+                        <select id="game-select" class="w-full p-2 rounded-lg text-gray-800"></select>
+                    </div>
+                    <div>
+                        <label for="bet-team" class="block text-sm font-medium text-gray-300">Time Vencedor</label>
+                        <select id="bet-team" class="w-full p-2 rounded-lg text-gray-800"></select>
+                    </div>
+                    <div>
+                        <label for="odds-input" class="block text-sm font-medium text-gray-300">Odd (ex: 2.5)</label>
+                        <input type="number" id="odds-input" step="0.01" min="1.0" class="w-full p-2 rounded-lg text-gray-800">
+                    </div>
+                    <div>
+                        <label for="amount-input" class="block text-sm font-medium text-gray-300">Valor Apostado</label>
+                        <input type="number" id="amount-input" step="0.01" min="0.01" class="w-full p-2 rounded-lg text-gray-800">
+                    </div>
+                    <button id="place-bet-btn" class="bg-green-500 text-white font-bold p-3 rounded-lg hover:bg-green-600 transition-colors">Registrar Aposta</button>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-white">Histórico de Apostas</h3>
+                    <div class="flex gap-2 items-center">
+                        <span id="total-staked" class="text-sm font-bold bg-blue-500 text-white px-2 py-1 rounded-full"></span>
+                        <span id="total-payout" class="text-sm font-bold bg-purple-500 text-white px-2 py-1 rounded-full"></span>
+                    </div>
+                </div>
+                <div id="bet-history-container" class="flex flex-col gap-4">
+                    <p id="no-bets-message" class="text-center text-gray-400 hidden">Nenhuma aposta encontrada.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Container de Notificação -->
+        <div id="notification-area" class="notification-container">
+            <span id="notification-icon" class="notification-icon"></span>
+            <span id="notification-message" class="text-center font-semibold text-sm md:text-base"></span>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, onSnapshot, query, where, updateDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Variáveis globais para Firebase, fornecidas pelo ambiente
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Inicializa o Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let allGames = [];
+        let allBets = [];
+        let currentFilter = 'all';
+        let currentSearch = '';
+        let userId = null;
+        let isAuthReady = false;
+
+        // Dados estáticos de jogos para popular o banco de dados se estiver vazio
+        const staticGamesData = [
+            { "id": 1, "status": "Ao Vivo", "teamA": "Flamengo", "teamAInitials": "FLA", "teamAColor": "#D32F2F", "scoreA": 2, "teamB": "Corinthians", "teamBInitials": "COR", "teamBColor": "#212121", "scoreB": 1, "time": "54'" },
+            { "id": 4, "status": "Finalizado", "teamA": "São Paulo", "teamAInitials": "SAO", "teamAColor": "#DC143C", "scoreA": 3, "teamB": "Internacional", "teamBInitials": "INT", "teamBColor": "#FFD700", "scoreB": 1, "date": "04/09/2025", "time": "Fim de Jogo" },
+            { "id": 6, "status": "A Iniciar", "teamA": "Vasco", "teamAInitials": "VAS", "teamAColor": "#212121", "scoreA": 0, "teamB": "Palmeiras", "teamBInitials": "PAL", "teamBColor": "#4CAF50", "scoreB": 0, "date": "06/09/2025", "time": "18:00" }
+        ];
+
+        // Função para autenticar o usuário
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Erro na autenticação:", error);
+            }
+        }
+
+        // Observa o estado de autenticação
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                isAuthReady = true;
+                console.log("Usuário autenticado:", userId);
+                fetchGames();
+                setupBettingPage();
+            } else {
+                console.log("Usuário deslogado.");
+                isAuthReady = false;
+            }
+        });
+
+        // Função para renderizar um único card de jogo
+        function renderGameCard(game) {
+            const teamATextColor = (game.teamAColor === '#FFFFFF' || game.teamAColor === '#F44336' || game.teamAColor === '#FFC107') ? 'black' : 'white';
+            const teamBTextColor = (game.teamBColor === '#FFFFFF' || game.teamBColor === '#F44336' || game.teamBColor === '#FFC107') ? 'black' : 'white';
+            const teamABorder = game.teamAColor === '#FFFFFF' ? 'border-2 border-black' : '';
+            const teamBBorder = game.teamBColor === '#FFFFFF' ? 'border-2 border-black' : '';
+            
+            let statusText = game.status;
+            let statusClass = 'bg-gray-500';
+            
+            if (game.status === 'Ao Vivo') {
+                statusText = 'Ao Vivo';
+                statusClass = 'bg-red-500 animate-pulse';
+            } else if (game.status === 'Finalizado') {
+                statusText = 'Finalizado';
+                statusClass = 'bg-green-500';
+            } else if (game.status === 'A Iniciar') {
+                statusText = 'A Iniciar';
+                statusClass = 'bg-blue-500';
+            }
+
+            return `
+                <div class="bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-between transition-all hover:scale-105 duration-300 transform-gpu">
+                    <span class="text-xs font-bold px-3 py-1 rounded-full ${statusClass} text-white mb-4">
+                        ${statusText}
+                    </span>
+                    <div class="flex items-center w-full justify-between gap-4">
+                        <div class="flex flex-col items-center flex-1 text-center">
+                            <div class="w-16 h-16 rounded-full flex items-center justify-center mb-2 ${teamABorder}" style="background-color: ${game.teamAColor}; color: ${teamATextColor};">
+                                <span class="font-extrabold text-sm">${game.teamAInitials}</span>
+                            </div>
+                            <p class="font-bold text-gray-800 text-sm md:text-base">${game.teamA}</p>
+                        </div>
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="flex items-center gap-2">
+                                <span class="text-3xl md:text-4xl font-extrabold text-gray-900">${game.scoreA}</span>
+                                <span class="text-2xl font-bold text-gray-400">-</span>
+                                <span class="text-3xl md:text-4xl font-extrabold text-gray-900">${game.scoreB}</span>
+                            </div>
+                            ${game.date ? `<span class="text-xs text-gray-500 font-semibold mt-1">${game.date}</span>` : ''}
+                            <span class="text-sm text-gray-500 font-semibold">
+                                ${game.status === 'Ao Vivo' ? game.time : game.status === 'Finalizado' ? 'Fim de Jogo' : game.time}
+                            </span>
+                        </div>
+                        <div class="flex flex-col items-center flex-1 text-center">
+                            <div class="w-16 h-16 rounded-full flex items-center justify-center mb-2 ${teamBBorder}" style="background-color: ${game.teamBColor}; color: ${teamBTextColor};">
+                                <span class="font-extrabold text-sm">${game.teamBInitials}</span>
+                            </div>
+                            <p class="font-bold text-gray-800 text-sm md:text-base">${game.teamB}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Função para filtrar e renderizar os jogos
+        function filterAndRenderGames() {
+            const filteredBySearch = allGames.filter(game => 
+                game.teamA.toLowerCase().includes(currentSearch.toLowerCase()) || 
+                game.teamB.toLowerCase().includes(currentSearch.toLowerCase())
+            );
+            const liveGames = filteredBySearch.filter(game => game.status === 'Ao Vivo');
+            const finishedGames = filteredBySearch.filter(game => game.status === 'Finalizado');
+            const upcomingGames = filteredBySearch.filter(game => game.status === 'A Iniciar');
+
+            document.getElementById('live-games-container').innerHTML = liveGames.map(renderGameCard).join('');
+            document.getElementById('finished-games-container').innerHTML = finishedGames.map(renderGameCard).join('');
+            document.getElementById('upcoming-games-container').innerHTML = upcomingGames.map(renderGameCard).join('');
+            
+            const liveSection = document.getElementById('live-games-section');
+            const upcomingSection = document.getElementById('upcoming-games-section');
+            const finishedSection = document.getElementById('finished-games-section');
+            const allGamesContainer = document.getElementById('all-games-container');
+            let noResultsMessage = document.getElementById('no-results-message');
+
+            if (!noResultsMessage) {
+                noResultsMessage = document.createElement('div');
+                noResultsMessage.id = 'no-results-message';
+                noResultsMessage.className = 'text-center text-white text-xl font-semibold mb-6 hidden';
+                noResultsMessage.textContent = 'Nenhum resultado encontrado.';
+                allGamesContainer.parentNode.insertBefore(noResultsMessage, allGamesContainer);
+            }
+
+            if (currentSearch.length > 0) {
+                liveSection.style.display = liveGames.length > 0 ? 'block' : 'none';
+                upcomingSection.style.display = upcomingGames.length > 0 ? 'block' : 'none';
+                finishedSection.style.display = finishedGames.length > 0 ? 'block' : 'none';
+                noResultsMessage.style.display = filteredBySearch.length === 0 ? 'block' : 'none';
+            } else {
+                liveSection.style.display = (currentFilter === 'all' || currentFilter === 'live') ? 'block' : 'none';
+                upcomingSection.style.display = (currentFilter === 'all' || currentFilter === 'upcoming') ? 'block' : 'none';
+                finishedSection.style.display = (currentFilter === 'all' || currentFilter === 'finished') ? 'block' : 'none';
+                noResultsMessage.style.display = 'none';
+            }
+            document.getElementById('live-games-title').classList.toggle('hidden', liveSection.style.display === 'none');
+            document.getElementById('upcoming-games-title').classList.toggle('hidden', upcomingSection.style.display === 'none');
+            document.getElementById('finished-games-title').classList.toggle('hidden', finishedSection.style.display === 'none');
+        }
+
+        // Função para atualizar a aba ativa
+        function updateActiveTab(activeId) {
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                if (tab.id === activeId) {
+                    tab.classList.remove('bg-gray-200', 'text-gray-700');
+                    tab.classList.add('bg-blue-600', 'text-white');
+                } else {
+                    tab.classList.remove('bg-blue-600', 'text-white');
+                    tab.classList.add('bg-gray-200', 'text-gray-700');
+                }
+            });
+        }
+
+        // Função para popular o Firestore com os jogos iniciais se a coleção estiver vazia
+        async function saveStaticGamesToFirestore() {
+            const gamesRef = collection(db, `artifacts/${appId}/public/data/games`);
+            const querySnapshot = await getDocs(gamesRef);
+
+            if (querySnapshot.empty) {
+                console.log("Coleção de jogos vazia. Populando com dados de teste...");
+                for (const game of staticGamesData) {
+                    await addDoc(gamesRef, game);
+                }
+                console.log("Dados de teste populados com sucesso.");
+            }
+        }
+
+        // Função para buscar os jogos do Firestore e configurar o listener
+        function fetchGames() {
+            if (!isAuthReady) {
+                console.log("Autenticação não pronta, tentando novamente em 1 segundo...");
+                setTimeout(fetchGames, 1000);
+                return;
+            }
+
+            saveStaticGamesToFirestore();
+
+            const gamesRef = collection(db, `artifacts/${appId}/public/data/games`);
+            onSnapshot(gamesRef, (snapshot) => {
+                allGames = [];
+                snapshot.forEach((doc) => {
+                    allGames.push({ id: doc.id, ...doc.data() });
+                });
+                document.getElementById('loading-message').classList.add('hidden');
+                filterAndRenderGames();
+                populateGameSelect();
+            }, (error) => {
+                console.error("Erro ao buscar jogos: ", error);
+                document.getElementById('loading-message').textContent = 'Erro ao carregar jogos.';
+            });
+        }
+
+        // Função para simular a atualização dos placares e resolver as apostas
+        function updateLiveScores() {
+            if (allGames.length === 0) return;
+            allGames.forEach(async (game) => {
+                if (game.status === 'Ao Vivo') {
+                    let newScoreA = game.scoreA;
+                    let newScoreB = game.scoreB;
+                    let newTime = game.time;
+                    let newStatus = game.status;
+
+                    if (Math.random() < 0.1) {
+                        if (Math.random() > 0.5) {
+                            newScoreA++;
+                        } else {
+                            newScoreB++;
+                        }
+                    }
+                    
+                    const currentTime = parseInt(game.time.replace("'", ""));
+                    if (currentTime < 90) {
+                        newTime = `${currentTime + 1}'`;
+                    } else {
+                        newStatus = "Finalizado";
+                        newTime = "Fim de Jogo";
+                        resolveBets(game);
+                    }
+                    
+                    // CORREÇÃO: Usando um caminho de string correto para a função doc()
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/games/${game.id}`), {
+                        scoreA: newScoreA,
+                        scoreB: newScoreB,
+                        time: newTime,
+                        status: newStatus
+                    });
+                }
+            });
+        }
+
+        // Função para mostrar notificações
+        function showNotification(message, type) {
+            const notificationArea = document.getElementById('notification-area');
+            const notificationMessage = document.getElementById('notification-message');
+            const notificationIcon = document.getElementById('notification-icon');
+
+            notificationMessage.textContent = message;
+            notificationArea.classList.remove('bg-green-500', 'bg-red-500', 'bg-gray-500');
+            notificationIcon.innerHTML = '';
+
+            if (type === 'success') {
+                notificationArea.classList.add('bg-green-500');
+                notificationIcon.innerHTML = '✔';
+            } else if (type === 'error') {
+                notificationArea.classList.add('bg-red-500');
+                notificationIcon.innerHTML = '✖';
+            } else {
+                notificationArea.classList.add('bg-gray-500');
+                notificationIcon.innerHTML = 'ℹ';
+            }
+            
+            notificationArea.classList.add('show');
+            setTimeout(() => {
+                notificationArea.classList.remove('show');
+            }, 5000);
+        }
+
+        // Função para resolver apostas baseadas no resultado do jogo
+        async function resolveBets(finishedGame) {
+            if (!isAuthReady || !userId) return;
+
+            const betsRef = collection(db, `artifacts/${appId}/users/${userId}/bets`);
+            const q = query(betsRef, where("gameId", "==", finishedGame.id), where("outcome", "==", "pending"));
+
+            try {
+                const querySnapshot = await getDocs(q);
+                querySnapshot.forEach(async (docSnap) => {
+                    const bet = docSnap.data();
+                    let newOutcome = "loss";
+                    let newPayout = 0;
+                    let notificationMessage = '';
+                    let notificationType = 'error';
+
+                    if (finishedGame.scoreA > finishedGame.scoreB && bet.teamBetOn === finishedGame.teamA) {
+                        newOutcome = "win";
+                        newPayout = bet.amountStaked * bet.odds;
+                        notificationMessage = `Parabéns! Sua aposta no ${bet.teamBetOn} foi vencedora!`;
+                        notificationType = 'success';
+                    } else if (finishedGame.scoreB > finishedGame.scoreA && bet.teamBetOn === finishedGame.teamB) {
+                        newOutcome = "win";
+                        newPayout = bet.amountStaked * bet.odds;
+                        notificationMessage = `Parabéns! Sua aposta no ${bet.teamBetOn} foi vencedora!`;
+                        notificationType = 'success';
+                    } else if (finishedGame.scoreA === finishedGame.scoreB && bet.teamBetOn === 'Empate') {
+                        newOutcome = "win";
+                        newPayout = bet.amountStaked * bet.odds;
+                        notificationMessage = `Parabéns! Sua aposta no ${bet.teamBetOn} foi vencedora!`;
+                        notificationType = 'success';
+                    } else {
+                        notificationMessage = `Aposta no ${bet.teamBetOn} resolvida. Não foi desta vez.`;
+                    }
+                    
+                    await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/bets/${docSnap.id}`), {
+                        outcome: newOutcome,
+                        payout: newPayout
+                    });
+
+                    showNotification(notificationMessage, notificationType);
+                });
+            } catch (e) {
+                console.error("Erro ao resolver apostas: ", e);
+            }
+        }
+
+        // Renderiza um card de aposta
+        function renderBetCard(bet) {
+            let statusText = "Pendente";
+            let statusClass = "bg-yellow-500";
+            let resultText = "Aguardando";
+            let resultClass = "text-gray-400";
+            let profit = 0;
+
+            if (bet.outcome === "win") {
+                statusText = "Ganhou";
+                statusClass = "bg-green-500";
+                profit = bet.payout - bet.amountStaked;
+                resultText = `+ R$${profit.toFixed(2)}`;
+                resultClass = "text-green-500 font-bold";
+            } else if (bet.outcome === "loss") {
+                statusText = "Perdeu";
+                statusClass = "bg-red-500";
+                profit = -bet.amountStaked;
+                resultText = `- R$${bet.amountStaked.toFixed(2)}`;
+                resultClass = "text-red-500 font-bold";
+            }
+
+            return `
+                <div class="bg-gray-700 p-4 rounded-lg flex justify-between items-center shadow-md">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-300">Jogo: <span class="text-white">${bet.gameTitle}</span></p>
+                        <p class="text-xs text-gray-400">Apostou em: <span class="text-white">${bet.teamBetOn}</span></p>
+                        <p class="text-xs text-gray-400">Odd: <span class="text-white">${bet.odds}</span> | Valor: <span class="text-white">R$${bet.amountStaked.toFixed(2)}</span></p>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-xs font-bold px-2 py-1 rounded-full ${statusClass} text-white mb-1">${statusText}</span>
+                        <span class="text-sm ${resultClass}">${resultText}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Adiciona uma nova aposta
+        async function placeNewBet() {
+            if (!isAuthReady || !userId) {
+                console.error("Usuário não autenticado.");
+                return;
+            }
+
+            const gameSelect = document.getElementById('game-select');
+            const betTeam = document.getElementById('bet-team');
+            const oddsInput = document.getElementById('odds-input');
+            const amountInput = document.getElementById('amount-input');
+
+            if (!gameSelect.value || !betTeam.value || !oddsInput.value || !amountInput.value) {
+                console.error("Preencha todos os campos.");
+                return;
+            }
+
+            const selectedGame = allGames.find(game => game.id === gameSelect.value);
+
+            if (!selectedGame) {
+                console.error("Jogo selecionado não encontrado.");
+                return;
+            }
+
+            const betData = {
+                gameId: selectedGame.id,
+                gameTitle: `${selectedGame.teamA} vs ${selectedGame.teamB}`,
+                teamBetOn: betTeam.value,
+                odds: parseFloat(oddsInput.value),
+                amountStaked: parseFloat(amountInput.value),
+                outcome: "pending",
+                payout: 0,
+                createdAt: new Date()
+            };
+
+            const betsRef = collection(db, `artifacts/${appId}/users/${userId}/bets`);
+            try {
+                await addDoc(betsRef, betData);
+                oddsInput.value = '';
+                amountInput.value = '';
+                console.log("Aposta adicionada com sucesso!");
+                showNotification("Aposta registrada com sucesso!", "success");
+            } catch (e) {
+                console.error("Erro ao adicionar aposta:", e);
+                showNotification("Erro ao registrar a aposta.", "error");
+            }
+        }
+
+        // Configura a página de apostas
+        function setupBettingPage() {
+            if (!isAuthReady || !userId) return;
+
+            const betsRef = collection(db, `artifacts/${appId}/users/${userId}/bets`);
+            onSnapshot(betsRef, (snapshot) => {
+                allBets = [];
+                let totalStaked = 0;
+                let totalPayout = 0;
+                snapshot.forEach((doc) => {
+                    const bet = { id: doc.id, ...doc.data() };
+                    allBets.push(bet);
+                    totalStaked += bet.amountStaked;
+                    if (bet.outcome === 'win') {
+                        totalPayout += bet.payout;
+                    }
+                });
+                
+                allBets.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
+
+                const historyContainer = document.getElementById('bet-history-container');
+                if (allBets.length > 0) {
+                    document.getElementById('no-bets-message').classList.add('hidden');
+                    historyContainer.innerHTML = allBets.map(renderBetCard).join('');
+                } else {
+                    document.getElementById('no-bets-message').classList.remove('hidden');
+                    historyContainer.innerHTML = '';
+                }
+
+                document.getElementById('total-staked').textContent = `Apostado: R$${totalStaked.toFixed(2)}`;
+                document.getElementById('total-payout').textContent = `Ganho: R$${totalPayout.toFixed(2)}`;
+            });
+        }
+
+        // Popula o dropdown de jogos
+        function populateGameSelect() {
+            const gameSelect = document.getElementById('game-select');
+            const betTeam = document.getElementById('bet-team');
+            gameSelect.innerHTML = '';
+            betTeam.innerHTML = '';
+
+            const placeholderOption = document.createElement('option');
+            placeholderOption.value = '';
+            placeholderOption.textContent = 'Selecione um jogo';
+            placeholderOption.disabled = true;
+            placeholderOption.selected = true;
+            gameSelect.appendChild(placeholderOption);
+
+            allGames.forEach(game => {
+                const option = document.createElement('option');
+                option.value = game.id;
+                option.textContent = `${game.teamA} vs ${game.teamB} (${game.status})`;
+                gameSelect.appendChild(option);
+            });
+
+            gameSelect.addEventListener('change', () => {
+                const selectedGame = allGames.find(g => g.id === gameSelect.value);
+                if (selectedGame) {
+                    betTeam.innerHTML = '';
+                    ['', selectedGame.teamA, selectedGame.teamB, 'Empate'].forEach(team => {
+                        const option = document.createElement('option');
+                        option.value = team;
+                        option.textContent = team || 'Selecione o time';
+                        if (!team) option.disabled = true;
+                        if (!team) option.selected = true;
+                        betTeam.appendChild(option);
+                    });
+                }
+            });
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Alterna a visualização principal e a de apostas
+            document.getElementById('toggle-betting-view').addEventListener('click', () => {
+                const liveScoreView = document.getElementById('live-score-view');
+                const bettingView = document.getElementById('betting-view');
+                const toggleBtn = document.getElementById('toggle-betting-view');
+
+                if (liveScoreView.classList.contains('hidden')) {
+                    liveScoreView.classList.remove('hidden');
+                    bettingView.classList.add('hidden');
+                    toggleBtn.textContent = 'Minhas Apostas';
+                } else {
+                    liveScoreView.classList.add('hidden');
+                    bettingView.classList.remove('hidden');
+                    toggleBtn.textContent = 'Voltar';
+                }
+            });
+
+            document.getElementById('tab-all').addEventListener('click', () => {
+                currentFilter = 'all';
+                updateActiveTab('tab-all');
+                filterAndRenderGames();
+            });
+            document.getElementById('tab-live').addEventListener('click', () => {
+                currentFilter = 'live';
+                updateActiveTab('tab-live');
+                filterAndRenderGames();
+            });
+            document.getElementById('tab-finished').addEventListener('click', () => {
+                currentFilter = 'finished';
+                updateActiveTab('tab-finished');
+                filterAndRenderGames();
+            });
+            document.getElementById('tab-upcoming').addEventListener('click', () => {
+                currentFilter = 'upcoming';
+                updateActiveTab('tab-upcoming');
+                filterAndRenderGames();
+            });
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                currentSearch = e.target.value;
+                filterAndRenderGames();
+            });
+            document.getElementById('place-bet-btn').addEventListener('click', placeNewBet);
+
+            // Inicializa a autenticação e o loop de atualização
+            authenticateUser();
+            setInterval(updateLiveScores, 5000);
+        });
+    </script>
+</body>
+</html>
